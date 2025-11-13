@@ -352,18 +352,18 @@ By completing the capstone, students demonstrate mastery of:
 
 ### Recommended Order
 
-1. **Start with Day 1** (2-3 hours)
+1. **Start with Day 1** 
    - Study the complete vault program
    - Understand PDAs and CPI
    - Deploy to localnet
 
-2. **Move to Day 2** (4-6 hours)
+2. **Move to Day 2** 
    - Study the modular structure
    - Understand time-based logic
    - Run the test suite
    - Deploy to devnet
 
-3. **Tackle the Capstone** (10-15 hours)
+3. **Tackle the Capstone**
    - Complete all TODOs
    - Write comprehensive tests
    - Deploy and verify functionality
