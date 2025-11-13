@@ -569,4 +569,4 @@ See the README.md in each folder for troubleshooting guides.
 
 **Good luck on your Solana learning journey!** 🚀
 
-Built with ❤️ by Kronos Guild. 
+Built with ❤️ by Kronos Guild. ⏳
