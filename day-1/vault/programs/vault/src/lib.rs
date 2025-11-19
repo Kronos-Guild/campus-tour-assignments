@@ -5,7 +5,7 @@ use anchor_lang::system_program::{transfer, Transfer};
 // Reference: https://www.anchor-lang.com/docs/programs
 // This macro declares the program's on-chain address. It's generated when you create
 // a new Anchor program and is used to verify that the correct program is being called.
-declare_id!("CGEB5qg98afTaM5g4ax8MbTnRh6xyCSXn738JRksKdJA");
+declare_id!("4jzb27LPnWxniBfZ78suu7dvfKmmuX5pRHqKcje6NKyY");
 
 // CONCEPT: #[program] macro
 // Reference: https://www.anchor-lang.com/docs/programs
@@ -65,48 +65,36 @@ pub mod vault {
     // Transfers SOL from vault back to user
     // CONCEPT: PDA Signing - https://www.anchor-lang.com/docs/pdas
     // The vault is a PDA, so only the program can sign for it
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        require!(amount > 0, VaultError::InvalidAmount);
 
-        let vault = &ctx.accounts.vault;
+    // REPLACE YOUR WITHDRAW FUNCTION WITH THIS
+pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+    require!(amount > 0, VaultError::InvalidAmount);
 
-        // Check vault has enough lamports
-        let vault_lamports = vault.to_account_info().lamports();
-        require!(
-            vault_lamports >= amount,
-            VaultError::InsufficientFunds
-        );
+    let vault = &mut ctx.accounts.vault;
+    let user = &mut ctx.accounts.user;
 
-        // CONCEPT: PDA Signing with Seeds
-        // Reference: https://www.anchor-lang.com/docs/pdas
-        // To transfer from a PDA, the program must sign using the same seeds
-        // and bump that were used to derive the PDA address
-        let seeds = &[
-            b"vault",
-            vault.owner.as_ref(),
-            &[vault.bump],
-        ];
-        let signer_seeds = &[&seeds[..]];
+    // 1. Check vault has enough lamports
+    // We access the account info directly to see the SOL balance
+    let vault_lamports = vault.to_account_info().lamports();
+    
+    require!(
+        vault_lamports >= amount,
+        VaultError::InsufficientFunds
+    );
 
-        let accounts = Transfer {
-            from: ctx.accounts.vault.to_account_info(),
-            to: ctx.accounts.user.to_account_info(),
-        };
+    // 2. CONCEPT: Direct Lamport Manipulation
+    // Since this program OWNS the vault PDA, we can modify its lamports directly.
+    // We do not need a CPI to the System Program.
+    
+    // A. Subtract from Vault
+    **vault.to_account_info().try_borrow_mut_lamports()? -= amount;
+    
+    // B. Add to User
+    **user.to_account_info().try_borrow_mut_lamports()? += amount;
 
-        // CONCEPT: CPI with Signer Seeds
-        // Reference: https://www.anchor-lang.com/docs/cross-program-invocations
-        // Use new_with_signer to prove the program owns the PDA
-        let cpi_context = CpiContext::new_with_signer(
-            ctx.accounts.system_program.to_account_info(),
-            accounts,
-            signer_seeds,
-        );
-
-        transfer(cpi_context, amount)?;
-
-        msg!("Withdrawn {} lamports from vault", amount);
-        Ok(())
-    }
+    msg!("Withdrawn {} lamports from vault", amount);
+    Ok(())
+}
 }
 
 // ACCOUNTS STRUCT 1: Initialize
@@ -157,24 +145,20 @@ pub struct Deposit<'info> {
     pub system_program: Program<'info, System>,
 }
 
-// ACCOUNTS STRUCT 3: Withdraw
+
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    // CONCEPT: has_one constraint - https://www.anchor-lang.com/docs/the-accounts-struct#constraints
-    // Verifies that vault.owner equals the owner account's pubkey
     #[account(
         mut,
-        seeds = [b"vault", vault.owner.as_ref()],
+        seeds = [b"vault", user.key().as_ref()],
         bump = vault.bump,
-        has_one = owner
+        // This ensures the person signing IS the person listed as owner in the vault data
+        constraint = vault.owner == user.key() 
     )]
     pub vault: Account<'info, Vault>,
 
     #[account(mut)]
     pub user: Signer<'info>,
-
-    /// CHECK: This is the owner of the vault, verified through has_one constraint
-    pub owner: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
