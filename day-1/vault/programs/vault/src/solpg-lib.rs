@@ -1,26 +1,23 @@
 use anchor_lang::prelude::*;
-// We don't need Transfer import anymore since we are doing direct math
 
-// SolPG will handle the declare_id! automatically. 
-// If you see an error, click "Update" in the error popup.
 declare_id!("11111111111111111111111111111111");
 
 #[program]
 pub mod vault {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>, unique_seed: u64) -> Result<()> {
         let vault = &mut ctx.accounts.vault;
         vault.owner = ctx.accounts.user.key();
         vault.bump = ctx.bumps.vault;
-        msg!("Vault initialized for owner: {:?}", vault.owner);
+        msg!("Vault initialized with seed: {}", unique_seed);
         Ok(())
     }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    // <--- UPDATED: Added unique_seed as an argument here
+    pub fn deposit(ctx: Context<Deposit>, unique_seed: u64, amount: u64) -> Result<()> {
         require!(amount > 0, VaultError::InvalidAmount);
 
-        // CPI to System Program is fine for DEPOSITS (User -> Vault)
         let ix = anchor_lang::solana_program::system_instruction::transfer(
             &ctx.accounts.user.key(),
             &ctx.accounts.vault.key(),
@@ -40,7 +37,8 @@ pub mod vault {
         Ok(())
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+    // <--- UPDATED: Added unique_seed as an argument here
+    pub fn withdraw(ctx: Context<Withdraw>, unique_seed: u64, amount: u64) -> Result<()> {
         require!(amount > 0, VaultError::InvalidAmount);
 
         let vault = &mut ctx.accounts.vault;
@@ -52,7 +50,6 @@ pub mod vault {
             VaultError::InsufficientFunds
         );
 
-        // DIRECT LAMPORT MANIPULATION (The fix we made)
         **vault.to_account_info().try_borrow_mut_lamports()? -= amount;
         **user.to_account_info().try_borrow_mut_lamports()? += amount;
 
@@ -62,12 +59,13 @@ pub mod vault {
 }
 
 #[derive(Accounts)]
+#[instruction(unique_seed: u64)]
 pub struct Initialize<'info> {
     #[account(
         init,
         payer = user,
         space = 8 + Vault::INIT_SPACE,
-        seeds = [b"vault", user.key().as_ref()],
+        seeds = [b"vault", user.key().as_ref(), &unique_seed.to_le_bytes()],
         bump
     )]
     pub vault: Account<'info, Vault>,
@@ -76,11 +74,13 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// <--- UPDATED: Added instruction macro and seed to seeds array
 #[derive(Accounts)]
+#[instruction(unique_seed: u64)] 
 pub struct Deposit<'info> {
     #[account(
         mut,
-        seeds = [b"vault", user.key().as_ref()],
+        seeds = [b"vault", user.key().as_ref(), &unique_seed.to_le_bytes()],
         bump = vault.bump,
     )]
     pub vault: Account<'info, Vault>,
@@ -89,11 +89,13 @@ pub struct Deposit<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// <--- UPDATED: Added instruction macro and seed to seeds array
 #[derive(Accounts)]
+#[instruction(unique_seed: u64)]
 pub struct Withdraw<'info> {
     #[account(
         mut,
-        seeds = [b"vault", user.key().as_ref()],
+        seeds = [b"vault", user.key().as_ref(), &unique_seed.to_le_bytes()],
         bump = vault.bump,
         constraint = vault.owner == user.key()
     )]
